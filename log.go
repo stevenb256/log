@@ -76,14 +76,16 @@ var _log *Log
 // Check checks if err is a failure; if so logs and returns true; or false
 func Check(err error, a ...interface{}) bool {
 	if nil != err {
-		_log.chTrace <- &Trace{
-			Time:   time.Now(),
-			Kind:   strError,
-			Build:  _log.build,
-			Caller: getCaller(2),
-			Stack:  stack(),
-			Error:  err,
-			Data:   a,
+		if nil != _log {
+			_log.chTrace <- &Trace{
+				Time:   time.Now(),
+				Kind:   strError,
+				Build:  _log.build,
+				Caller: getCaller(2),
+				Stack:  stack(),
+				Error:  err,
+				Data:   a,
+			}
 		}
 		return true
 	}
@@ -93,14 +95,16 @@ func Check(err error, a ...interface{}) bool {
 // Fail checks if err is a failure; if so logs and returns true; or false
 func Fail(err error, a ...interface{}) error {
 	if nil != err {
-		_log.chTrace <- &Trace{
-			Time:   time.Now(),
-			Kind:   strError,
-			Build:  _log.build,
-			Caller: getCaller(2),
-			Stack:  stack(),
-			Error:  err,
-			Data:   a,
+		if nil != _log {
+			_log.chTrace <- &Trace{
+				Time:   time.Now(),
+				Kind:   strError,
+				Build:  _log.build,
+				Caller: getCaller(2),
+				Stack:  stack(),
+				Error:  err,
+				Data:   a,
+			}
 		}
 	}
 	return err
@@ -112,47 +116,55 @@ func Assert(condition bool, a ...interface{}) {
 		t := &Trace{
 			Time:   time.Now(),
 			Kind:   strAssert,
-			Build:  _log.build,
+			Build:  "<assert>",
 			Caller: getCaller(2),
 			Stack:  stack(),
 			Data:   a,
 		}
-		_log.close()
+		if nil != _log {
+			_log.close()
+		}
 		panic(t.asString()) // using nil prevents auto-restart from happening
 	}
 }
 
 // Warning log a warning
 func Warning(a ...interface{}) {
-	_log.chTrace <- &Trace{
-		Time:   time.Now(),
-		Kind:   strWarning,
-		Build:  _log.build,
-		Caller: getCaller(2),
-		Data:   a,
+	if nil != _log {
+		_log.chTrace <- &Trace{
+			Time:   time.Now(),
+			Kind:   strWarning,
+			Build:  _log.build,
+			Caller: getCaller(2),
+			Data:   a,
+		}
 	}
 }
 
 // Info log info
 func Info(a ...interface{}) {
-	_log.chTrace <- &Trace{
-		Time:   time.Now(),
-		Kind:   strInfo,
-		Build:  _log.build,
-		Caller: getCaller(2),
-		Data:   a,
+	if nil != _log {
+		_log.chTrace <- &Trace{
+			Time:   time.Now(),
+			Kind:   strInfo,
+			Build:  _log.build,
+			Caller: getCaller(2),
+			Data:   a,
+		}
 	}
 }
 
 // Debug write a debug message
 func Debug(a ...interface{}) {
-	_log.chTrace <- &Trace{
-		Time:   time.Now(),
-		Kind:   strDebug,
-		Build:  _log.build,
-		Caller: getCaller(2),
-		Stack:  stack(),
-		Data:   a,
+	if nil != _log {
+		_log.chTrace <- &Trace{
+			Time:   time.Now(),
+			Kind:   strDebug,
+			Build:  _log.build,
+			Caller: getCaller(2),
+			Stack:  stack(),
+			Data:   a,
+		}
 	}
 }
 
@@ -178,29 +190,6 @@ func CloseLog() {
 	if nil != _log {
 		_log.close()
 		_log = nil
-	}
-}
-
-// Close the logger
-func (l *Log) close() {
-	if nil != l.chTrace {
-		l.chExit <- true
-		// flush whatever is left
-		done := false
-		for done == false {
-			select {
-			case trace := <-l.chTrace:
-				l.write(trace)
-			default:
-				done = true
-			}
-		}
-		close(l.chExit)
-		close(l.chTrace)
-	}
-	if nil != l.file {
-		l.file.Close()
-		l.file = nil
 	}
 }
 
@@ -235,6 +224,30 @@ func (l *Log) run(
 			done = true
 		}
 	}
+}
+
+// Close the logger
+func (l *Log) close() {
+	if nil != l.chTrace {
+		l.chExit <- true
+		// flush whatever is left
+		done := false
+		for done == false {
+			select {
+			case trace := <-l.chTrace:
+				l.write(trace)
+			default:
+				done = true
+			}
+		}
+		close(l.chExit)
+		close(l.chTrace)
+	}
+	if nil != l.file {
+		l.file.Close()
+		l.file = nil
+	}
+	_log = nil
 }
 
 // writes trace info; don't use error handling functions in here
