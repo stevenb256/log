@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,16 +24,7 @@ const strWarning string = "warning"
 // OnLog callback any time something is being logged
 type OnLog func(trace *Trace)
 
-// Tag used to describe an object for tracing
-type Tag struct {
-	name  string
-	value interface{}
-}
-
 // Tag quick create of tag structure
-func tag(name string, value interface{}) *Tag {
-	return &Tag{name: name, value: value}
-}
 func _f(format string, a ...interface{}) string {
 	return fmt.Sprintf(format, a...)
 }
@@ -60,32 +52,26 @@ type Trace struct {
 	Error  error         `json:"error"`
 }
 
-// Log interal log structure
-type Log struct {
-	console bool
-	onLog   OnLog
-	build   string
-	file    *os.File
-	chTrace chan *Trace
-	chExit  chan bool
-}
-
 // global log set once initialized
-var _log *Log
+var _mux sync.Mutex
+var _build string
+var _chTrace chan *Trace
+var _file *os.File
+var _chExit chan bool
+var _onLog OnLog
+var _console bool
 
 // Check checks if err is a failure; if so logs and returns true; or false
 func Check(err error, a ...interface{}) bool {
 	if nil != err {
-		if nil != _log {
-			_log.chTrace <- &Trace{
-				Time:   time.Now(),
-				Kind:   strError,
-				Build:  _log.build,
-				Caller: getCaller(2),
-				Stack:  stack(),
-				Error:  err,
-				Data:   a,
-			}
+		_chTrace <- &Trace{
+			Time:   time.Now(),
+			Kind:   strError,
+			Build:  _build,
+			Caller: getCaller(2),
+			Stack:  stack(),
+			Error:  err,
+			Data:   a,
 		}
 		return true
 	}
@@ -95,16 +81,14 @@ func Check(err error, a ...interface{}) bool {
 // Fail checks if err is a failure; if so logs and returns true; or false
 func Fail(err error, a ...interface{}) error {
 	if nil != err {
-		if nil != _log {
-			_log.chTrace <- &Trace{
-				Time:   time.Now(),
-				Kind:   strError,
-				Build:  _log.build,
-				Caller: getCaller(2),
-				Stack:  stack(),
-				Error:  err,
-				Data:   a,
-			}
+		_chTrace <- &Trace{
+			Time:   time.Now(),
+			Kind:   strError,
+			Build:  _build,
+			Caller: getCaller(2),
+			Stack:  stack(),
+			Error:  err,
+			Data:   a,
 		}
 	}
 	return err
@@ -121,151 +105,145 @@ func Assert(condition bool, a ...interface{}) {
 			Stack:  stack(),
 			Data:   a,
 		}
-		if nil != _log {
-			_log.close()
-		}
+		CloseLog()
 		panic(t.asString()) // using nil prevents auto-restart from happening
 	}
 }
 
 // Warning log a warning
 func Warning(a ...interface{}) {
-	if nil != _log {
-		_log.chTrace <- &Trace{
-			Time:   time.Now(),
-			Kind:   strWarning,
-			Build:  _log.build,
-			Caller: getCaller(2),
-			Data:   a,
-		}
+	_chTrace <- &Trace{
+		Time:   time.Now(),
+		Kind:   strWarning,
+		Build:  _build,
+		Caller: getCaller(2),
+		Data:   a,
 	}
 }
 
 // Info log info
 func Info(a ...interface{}) {
-	if nil != _log {
-		_log.chTrace <- &Trace{
-			Time:   time.Now(),
-			Kind:   strInfo,
-			Build:  _log.build,
-			Caller: getCaller(2),
-			Data:   a,
-		}
+	_chTrace <- &Trace{
+		Time:   time.Now(),
+		Kind:   strInfo,
+		Build:  _build,
+		Caller: getCaller(2),
+		Data:   a,
 	}
 }
 
 // Debug write a debug message
 func Debug(a ...interface{}) {
-	if nil != _log {
-		_log.chTrace <- &Trace{
-			Time:   time.Now(),
-			Kind:   strDebug,
-			Build:  _log.build,
-			Caller: getCaller(2),
-			Stack:  stack(),
-			Data:   a,
-		}
+	_chTrace <- &Trace{
+		Time:   time.Now(),
+		Kind:   strDebug,
+		Build:  _build,
+		Caller: getCaller(2),
+		Stack:  stack(),
+		Data:   a,
 	}
 }
 
 // StartLog initiates and begins logging system
-func StartLog(path, build string, console bool, onLog OnLog) error {
-	if nil == _log {
-		chError := make(chan error)
-		_log = new(Log)
-		go _log.run(path, build, console, onLog, chError)
-		err := <-chError
-		close(chError)
-		if nil != err {
-			_log.close()
-			_log = nil
-			return err
-		}
+func StartLog(logFile, build string, console bool, onLog OnLog) error {
+
+	// take mutex
+	_mux.Lock()
+	defer _mux.Unlock()
+
+	// if trace already allocated exit
+	if nil != _chTrace {
+		return nil
 	}
+
+	// open log file
+	err := openLogFile(logFile)
+	if nil != err {
+		return err
+	}
+
+	// create globals
+	_chExit = make(chan bool)
+	_chTrace = make(chan *Trace, 100)
+	_build = build
+	_onLog = onLog
+	_console = console
+
+	// run log routine
+	go logRoutine(build, console, onLog)
+
+	// done
 	return nil
 }
 
-// CloseLog shuts down and flushes log
-func CloseLog() {
-	if nil != _log {
-		_log.close()
-		_log = nil
-	}
-}
-
 // starts log waiter and initializes stuff (runs on own routine)
-func (l *Log) run(
-	logFile, build string, console bool,
-	onLog OnLog, chError chan error) {
-	if "" != logFile {
-		var err error
-		l.file, err = os.OpenFile(
-			logFile,
-			os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC,
-			os.ModePerm)
-		if nil != err {
-			chError <- err
-			return
-		}
-		defer l.file.Close()
-	}
-	chError <- nil
-	l.chTrace = make(chan *Trace, 100)
-	l.chExit = make(chan bool)
-	l.build = build
-	l.onLog = onLog
-	l.console = console
-	done := false
-	for done == false {
+// assumes _mux.Lock is called already
+func logRoutine(build string, console bool, onLog OnLog) {
+	for done := false; done == false; {
 		select {
-		case trace := <-l.chTrace:
-			l.write(trace)
-		case <-l.chExit:
+		case trace := <-_chTrace:
+			_mux.Lock()
+			writeLog(trace)
+			_mux.Unlock()
+		case <-_chExit:
 			done = true
 		}
 	}
 }
 
-// Close the logger
-func (l *Log) close() {
-	if nil != l.chTrace {
-		l.chExit <- true
-		// flush whatever is left
-		done := false
-		for done == false {
+// CloseLog shuts down and flushes log
+func CloseLog() {
+	_mux.Lock()
+	if nil != _chExit {
+		_mux.Unlock()
+		_chExit <- true
+		_mux.Lock()
+		for done := false; done == false; {
 			select {
-			case trace := <-l.chTrace:
-				l.write(trace)
+			case trace := <-_chTrace:
+				writeLog(trace)
 			default:
 				done = true
 			}
 		}
-		close(l.chExit)
-		close(l.chTrace)
+		close(_chTrace)
+		close(_chExit)
 	}
-	if nil != l.file {
-		l.file.Close()
-		l.file = nil
+	if nil != _file {
+		_file.Close()
+		_file = nil
 	}
-	_log = nil
+	_mux.Unlock()
+}
+
+// open log file; assume _mux taken
+func openLogFile(logFile string) error {
+	var err error
+	if "" != logFile {
+		_file, err = os.OpenFile(logFile,
+			os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC,
+			os.ModePerm)
+	}
+	return err
 }
 
 // writes trace info; don't use error handling functions in here
-func (l *Log) write(trace *Trace) {
-	if true == l.console || strDebug == trace.Kind {
-		l.toConsole(trace)
+// assumes _mux.Lock taken
+func writeLog(trace *Trace) {
+	if true == _console || strDebug == trace.Kind {
+		writeConsole(trace)
 	}
-	if nil != l.file {
-		l.file.WriteString(trace.asString())
-		l.file.WriteString("\n")
+	if nil != _file {
+		_file.WriteString(trace.asString())
+		_file.WriteString("\n")
 	}
-	if nil != l.onLog {
-		l.onLog(trace)
+	if nil != _onLog {
+		_onLog(trace)
 	}
 }
 
 // write trace to console
-func (l *Log) toConsole(trace *Trace) {
+func writeConsole(trace *Trace) {
 	if strDebug == trace.Kind {
 		color.Set(color.FgHiMagenta)
 	} else if strWarning == trace.Kind {

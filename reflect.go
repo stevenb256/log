@@ -46,8 +46,6 @@ func interfaceAsString(obj interface{}) string {
 			return strconv.FormatUint(val, 10)
 		case uint:
 			return strconv.FormatUint(uint64(val), 10)
-		case *Tag:
-			return _f("[%s: %s]", val.name, interfaceAsString(val.value))
 		default:
 			t, v := reflectDeref(obj)
 			name := strings.TrimPrefix(t.String(), "main.")
