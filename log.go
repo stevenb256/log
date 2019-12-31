@@ -57,7 +57,6 @@ var _mux sync.Mutex
 var _build string
 var _chTrace chan *Trace
 var _file *os.File
-var _chExit chan bool
 var _onLog OnLog
 var _console bool
 
@@ -163,7 +162,6 @@ func StartLog(logFile, build string, console bool, onLog OnLog) error {
 	}
 
 	// create globals
-	_chExit = make(chan bool)
 	_chTrace = make(chan *Trace, 100)
 	_build = build
 	_onLog = onLog
@@ -179,36 +177,23 @@ func StartLog(logFile, build string, console bool, onLog OnLog) error {
 // starts log waiter and initializes stuff (runs on own routine)
 // assumes _mux.Lock is called already
 func logRoutine(build string, console bool, onLog OnLog) {
-	for done := false; done == false; {
-		select {
-		case trace := <-_chTrace:
-			_mux.Lock()
-			writeLog(trace)
-			_mux.Unlock()
-		case <-_chExit:
-			done = true
+	for {
+		trace, more := <-_chTrace
+		if false == more {
+			break
 		}
+		_mux.Lock()
+		writeLog(trace)
+		_mux.Unlock()
 	}
 }
 
 // CloseLog shuts down and flushes log
 func CloseLog() {
-	_mux.Lock()
-	if nil != _chExit {
-		_mux.Unlock()
-		_chExit <- true
-		_mux.Lock()
-		for done := false; done == false; {
-			select {
-			case trace := <-_chTrace:
-				writeLog(trace)
-			default:
-				done = true
-			}
-		}
+	if nil != _chTrace {
 		close(_chTrace)
-		close(_chExit)
 	}
+	_mux.Lock()
 	if nil != _file {
 		_file.Close()
 		_file = nil

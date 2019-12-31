@@ -6,6 +6,9 @@ import (
 	"strconv"
 )
 
+// ErrInvalidArg generic error for invalid arguments
+var ErrInvalidArg = NewError(100, "generic", "invalid argument")
+
 // Error used to hold error and error descriptoin
 type Error struct {
 	error
