@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -53,7 +52,6 @@ type Trace struct {
 }
 
 // global log set once initialized
-var _mux sync.Mutex
 var _build string
 var _chTrace chan *Trace
 var _file *os.File
@@ -146,10 +144,6 @@ func Debug(a ...interface{}) {
 // StartLog initiates and begins logging system
 func StartLog(logFile, build string, console bool, onLog OnLog) error {
 
-	// take mutex
-	_mux.Lock()
-	defer _mux.Unlock()
-
 	// if trace already allocated exit
 	if nil != _chTrace {
 		return nil
@@ -182,9 +176,7 @@ func logRoutine(build string, console bool, onLog OnLog) {
 		if false == more {
 			break
 		}
-		_mux.Lock()
 		writeLog(trace)
-		_mux.Unlock()
 	}
 }
 
@@ -192,13 +184,12 @@ func logRoutine(build string, console bool, onLog OnLog) {
 func CloseLog() {
 	if nil != _chTrace {
 		close(_chTrace)
+		_chTrace = nil
 	}
-	_mux.Lock()
 	if nil != _file {
 		_file.Close()
 		_file = nil
 	}
-	_mux.Unlock()
 }
 
 // open log file; assume _mux taken
