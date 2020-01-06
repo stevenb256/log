@@ -28,7 +28,7 @@ type complexTest struct {
 func TestLog(t *testing.T) {
 
 	// test struct
-	ct := &complexTest{T: "test", x: time.Now(), b: []byte("123"), c: new(map[string]string)}
+	//ct := &complexTest{T: "test", x: time.Now(), b: []byte("123"), c: new(map[string]string)}
 
 	// test vars
 	int1 := 1
@@ -64,9 +64,9 @@ func TestLog(t *testing.T) {
 		Kind:   strError,
 		Build:  "1.0",
 		Caller: getCaller(1),
-		Stack:  stack(),
+		Stack:  "",
 		Error:  errTest1,
-		Data:   []interface{}{int1, int2, ct},
+		//	Data:   []interface{}{int1, int2, ct},
 	}
 
 	// get as json
@@ -78,7 +78,7 @@ func TestLog(t *testing.T) {
 	fmt.Printf("%s\n", j)
 
 	// print a warning
-	Fail(errTest1, "test warning", int1, int2)
+	Fail(errTest1, "test fail", int1, int2)
 	Warning(errTest1, "test warning", int1, int2)
 	Debug(errTest1, "test debug", int1, int2)
 	Info(errTest1, "test info", int1, int2)

@@ -1,6 +1,7 @@
 package log
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -13,8 +14,12 @@ func sliceAsString(data []interface{}) string {
 		return ""
 	}
 	parts := make([]string, len(data))
-	for i, obj := range data {
-		parts[i] = interfaceAsString(obj)
+	for i, o := range data {
+		if isInterfacesNil(o) {
+			parts[i] = "nil"
+		} else {
+			parts[i] = fmt.Sprintf("%+v", o)
+		}
 	}
 	return strings.Join(parts, ", ")
 }

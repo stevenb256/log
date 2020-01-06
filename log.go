@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
-	"syscall"
 	"time"
 
 	"github.com/fatih/color"
@@ -184,7 +182,6 @@ func logRoutine(build string, console bool, onLog OnLog) {
 func CloseLog() {
 	if nil != _chTrace {
 		close(_chTrace)
-		_chTrace = nil
 	}
 	if nil != _file {
 		_file.Close()
@@ -245,16 +242,19 @@ func (t *Trace) asJSON() string {
 
 // return trace as human understable string
 func (t *Trace) asString() string {
-	source := fmt.Sprintf("%s(%d): %s(%d): %s",
-		t.Build, syscall.Getpid(),
-		t.Caller.File, t.Caller.Line, t.Caller.Function)
+	source :=
+		//fmt.Sprintf("%s(%d): %s:%d: %s",
+		//	t.Build, syscall.Getpid(),
+		fmt.Sprintf("%s:%d %s",
+			t.Caller.File, t.Caller.Line, t.Caller.Function)
 	message := sliceAsString(t.Data)
 	if nil != t.Error {
 		message = fmt.Sprintf("%s: %s", t.Error.Error(), message)
 	}
-	return fmt.Sprintf("%02d/%02d/%04d %02d:%02d:%02d: [%s] %s: %s",
-		t.Time.Month(), t.Time.Day(), t.Time.Year(),
-		t.Time.Hour(), t.Time.Minute(), t.Time.Second(),
+	//return fmt.Sprintf("%02d/%02d/%04d %02d:%02d:%02d: [%s] %s: %s",
+	//	t.Time.Month(), t.Time.Day(), t.Time.Year(),
+	//	t.Time.Hour(), t.Time.Minute(), t.Time.Second(),
+	return fmt.Sprintf("[%s]: %s: %s",
 		t.Kind, source, message)
 }
 
@@ -271,22 +271,9 @@ func getCaller(level int) *caller {
 	pc, file, line, ok := runtime.Caller(level)
 	if true == ok {
 		details := runtime.FuncForPC(pc)
-		if details != nil {
-			names := strings.Split(details.Name(), ".")
-			if 1 == len(names) {
-				function = names[0]
-			} else if 2 == len(names) {
-				function = names[1]
-			} else if 3 == len(names) {
-				function = names[2]
-			} else if 4 == len(names) {
-				function = names[3]
-			} else {
-				function = details.Name()
-			}
-		}
+		function = details.Name()
 	}
-	return &caller{File: filepath.Base(file), Line: line, Function: function}
+	return &caller{File: file, Line: line, Function: filepath.Base(function)}
 }
 
 /* Code to create google logger
