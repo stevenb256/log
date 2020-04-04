@@ -6,17 +6,18 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
 )
 
 // strings
-const strAssert string = "assert"
-const strError string = "error"
-const strDebug string = "debug"
-const strInfo string = "info"
-const strWarning string = "warning"
+const strAssert string = "a"
+const strError string = "e"
+const strDebug string = "d"
+const strInfo string = "i"
+const strWarning string = "w"
 
 // OnLog callback any time something is being logged
 type OnLog func(trace *Trace)
@@ -180,12 +181,13 @@ func logRoutine(build string, console bool, onLog OnLog) {
 
 // CloseLog shuts down and flushes log
 func CloseLog() {
-	if nil != _chTrace {
-		close(_chTrace)
-	}
+	// we can't really close this stuff becuase we write to it after closeLog with the way defer works
+	//	if nil != _chTrace {
+	//		close(_chTrace)
+	//	}
 	if nil != _file {
 		_file.Close()
-		_file = nil
+		//		_file = nil
 	}
 }
 
@@ -273,7 +275,50 @@ func getCaller(level int) *caller {
 		details := runtime.FuncForPC(pc)
 		function = details.Name()
 	}
-	return &caller{File: file, Line: line, Function: filepath.Base(function)}
+	f := strings.Split(filepath.Base(function), ".")
+	return &caller{File: file, Line: line, Function: f[len(f)-1]}
+}
+
+// OpenCSV - opens a CSV file used to detailed logs
+func OpenCSV(path string, headers ...string) (*os.File, error) {
+	file, err := os.OpenFile(path,
+		os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC,
+		os.ModePerm)
+	if Check(err) {
+		return nil, err
+	}
+	file.WriteString("time")
+	for _, h := range headers {
+		file.WriteString("\t")
+		file.WriteString(h)
+	}
+	file.WriteString("\n")
+	return file, err
+}
+
+// WriteCSV - writes a row to the csv file
+func WriteCSV(file *os.File, values ...interface{}) {
+	file.WriteString(time.Now().Format(time.RFC3339))
+	for _, o := range values {
+		file.WriteString("\t")
+		switch v := o.(type) {
+		case string:
+			file.WriteString(v)
+		case int:
+			file.WriteString(fmt.Sprintf("%d", v))
+		case uint8:
+			file.WriteString(fmt.Sprintf("%d", v))
+		case uint32:
+			file.WriteString(fmt.Sprintf("%d", v))
+		case uint16:
+			file.WriteString(fmt.Sprintf("%d", v))
+		case float64:
+			file.WriteString(fmt.Sprintf("%0.02f", v))
+		default:
+			Assert(false)
+		}
+	}
+	file.WriteString("\n")
 }
 
 /* Code to create google logger
