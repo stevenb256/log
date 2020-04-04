@@ -312,8 +312,8 @@ func WriteCSV(file *os.File, values ...interface{}) {
 			file.WriteString(fmt.Sprintf("%d", v))
 		case uint16:
 			file.WriteString(fmt.Sprintf("%d", v))
-		case float64:
-			file.WriteString(fmt.Sprintf("%0.02f", v))
+		case time.Duration:
+			file.WriteString(fmt.Sprintf("%dms", v.Milliseconds()))
 		default:
 			Assert(false)
 		}
