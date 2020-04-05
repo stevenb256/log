@@ -19,6 +19,9 @@ const strDebug string = "d"
 const strInfo string = "i"
 const strWarning string = "w"
 
+// Hex32 -special type to declare hex
+type Hex32 uint32
+
 // OnLog callback any time something is being logged
 type OnLog func(trace *Trace)
 
@@ -277,48 +280,6 @@ func getCaller(level int) *caller {
 	}
 	f := strings.Split(filepath.Base(function), ".")
 	return &caller{File: file, Line: line, Function: f[len(f)-1]}
-}
-
-// OpenCSV - opens a CSV file used to detailed logs
-func OpenCSV(path string, headers ...string) (*os.File, error) {
-	file, err := os.OpenFile(path,
-		os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC,
-		os.ModePerm)
-	if Check(err) {
-		return nil, err
-	}
-	file.WriteString("time")
-	for _, h := range headers {
-		file.WriteString("\t")
-		file.WriteString(h)
-	}
-	file.WriteString("\n")
-	return file, err
-}
-
-// WriteCSV - writes a row to the csv file
-func WriteCSV(file *os.File, values ...interface{}) {
-	file.WriteString(time.Now().Format(time.RFC3339))
-	for _, o := range values {
-		file.WriteString("\t")
-		switch v := o.(type) {
-		case string:
-			file.WriteString(v)
-		case int:
-			file.WriteString(fmt.Sprintf("%d", v))
-		case uint8:
-			file.WriteString(fmt.Sprintf("%d", v))
-		case uint32:
-			file.WriteString(fmt.Sprintf("%d", v))
-		case uint16:
-			file.WriteString(fmt.Sprintf("%d", v))
-		case time.Duration:
-			file.WriteString(fmt.Sprintf("%dms", v.Milliseconds()))
-		default:
-			Assert(false)
-		}
-	}
-	file.WriteString("\n")
 }
 
 /* Code to create google logger
