@@ -68,7 +68,7 @@ func Check(err error, a ...interface{}) bool {
 			Kind:   strError,
 			Build:  _build,
 			Caller: getCaller(2),
-			Stack:  stack(),
+			Stack:  Stack(false),
 			Error:  err,
 			Data:   a,
 		}
@@ -85,7 +85,7 @@ func Fail(err error, a ...interface{}) error {
 			Kind:   strError,
 			Build:  _build,
 			Caller: getCaller(2),
-			Stack:  stack(),
+			Stack:  Stack(false),
 			Error:  err,
 			Data:   a,
 		}
@@ -101,7 +101,7 @@ func Assert(condition bool, a ...interface{}) {
 			Kind:   strAssert,
 			Build:  "<assert>",
 			Caller: getCaller(2),
-			Stack:  stack(),
+			Stack:  Stack(false),
 			Data:   a,
 		}
 		CloseLog()
@@ -138,7 +138,7 @@ func Debug(a ...interface{}) {
 		Kind:   strDebug,
 		Build:  _build,
 		Caller: getCaller(2),
-		Stack:  stack(),
+		Stack:  Stack(false),
 		Data:   a,
 	}
 }
@@ -263,10 +263,10 @@ func (t *Trace) asString() string {
 		t.Kind, source, message)
 }
 
-// gets full stack trace
-func stack() string {
-	buf := make([]byte, 1024)
-	cb := runtime.Stack(buf, false)
+// Stack full stack trace
+func Stack(all bool) string {
+	buf := make([]byte, 4096)
+	cb := runtime.Stack(buf, all)
 	return string(buf[:cb])
 }
 

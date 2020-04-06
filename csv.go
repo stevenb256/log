@@ -69,11 +69,13 @@ func (c *CSVLog) write(values []interface{}) {
 		case uint32:
 			c.file.WriteString(fmt.Sprintf("%d", v))
 		case Hex32:
-			c.file.WriteString(fmt.Sprintf("0x%x", v))
+			c.file.WriteString(fmt.Sprintf("%#x", int64(v)))
 		case uint16:
 			c.file.WriteString(fmt.Sprintf("%d", v))
+		case bool:
+			c.file.WriteString(fmt.Sprintf("%t", v))
 		case time.Duration:
-			c.file.WriteString(fmt.Sprintf("%dms", v.Milliseconds()))
+			c.file.WriteString(fmt.Sprintf("%d ms", v.Milliseconds()))
 		default:
 			Assert(false, v)
 		}

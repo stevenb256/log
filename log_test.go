@@ -55,9 +55,6 @@ func TestLog(t *testing.T) {
 		panic(nil)
 	}
 
-	fmt.Printf("stack\n")
-	fmt.Printf("%s\n", stack())
-
 	// fabricate a test trace
 	trace := &Trace{
 		Time:   time.Now(),
