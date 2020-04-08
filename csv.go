@@ -3,13 +3,14 @@ package log
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 )
 
 // CSVLog - used to hold a csv log file
 type CSVLog struct {
-	file    *os.File
-	chWrite chan []interface{}
+	mux  sync.Mutex
+	file *os.File
 }
 
 // OpenCSV - opens a CSV file used to detailed logs
@@ -20,68 +21,50 @@ func OpenCSV(path string, headers []interface{}) (*CSVLog, error) {
 	if Check(err) {
 		return nil, err
 	}
-	c.chWrite = make(chan []interface{})
-	go c.logRoutine()
 	c.Write(headers)
 	return c, err
 }
 
 // Close the csv log
 func (c *CSVLog) Close() {
-	if nil == c.chWrite {
-		close(c.chWrite)
-		c.chWrite = nil
-	}
+	c.mux.Lock()
 	if nil != c.file {
 		c.file.Close()
 		c.file = nil
 	}
+	c.mux.Unlock()
 }
 
 // Write - writes a row to the csv file
 func (c *CSVLog) Write(row []interface{}) {
-	if nil != c.chWrite {
-		c.chWrite <- row
-	}
-}
-
-// csv logRoutine
-func (c *CSVLog) logRoutine() {
-	for {
-		row, more := <-c.chWrite
-		if false == more {
-			break
+	c.mux.Lock()
+	if nil != c.file {
+		for i, o := range row {
+			switch v := o.(type) {
+			case string:
+				c.file.WriteString(v)
+			case int:
+				c.file.WriteString(fmt.Sprintf("%d", v))
+			case uint8:
+				c.file.WriteString(fmt.Sprintf("%d", v))
+			case uint32:
+				c.file.WriteString(fmt.Sprintf("%d", v))
+			case Hex32:
+				c.file.WriteString(fmt.Sprintf("%#x", int64(v)))
+			case uint16:
+				c.file.WriteString(fmt.Sprintf("%d", v))
+			case bool:
+				c.file.WriteString(fmt.Sprintf("%t", v))
+			case time.Duration:
+				c.file.WriteString(fmt.Sprintf("%d ms", v.Milliseconds()))
+			default:
+				Assert(false, v)
+			}
+			if i < len(row)-1 {
+				c.file.WriteString("\t")
+			}
 		}
-		c.write(row)
+		c.file.WriteString("\n")
 	}
-}
-
-// WriteCSV - writes a row to the csv file
-func (c *CSVLog) write(values []interface{}) {
-	for i, o := range values {
-		switch v := o.(type) {
-		case string:
-			c.file.WriteString(v)
-		case int:
-			c.file.WriteString(fmt.Sprintf("%d", v))
-		case uint8:
-			c.file.WriteString(fmt.Sprintf("%d", v))
-		case uint32:
-			c.file.WriteString(fmt.Sprintf("%d", v))
-		case Hex32:
-			c.file.WriteString(fmt.Sprintf("%#x", int64(v)))
-		case uint16:
-			c.file.WriteString(fmt.Sprintf("%d", v))
-		case bool:
-			c.file.WriteString(fmt.Sprintf("%t", v))
-		case time.Duration:
-			c.file.WriteString(fmt.Sprintf("%d ms", v.Milliseconds()))
-		default:
-			Assert(false, v)
-		}
-		if i < len(values)-1 {
-			c.file.WriteString("\t")
-		}
-	}
-	c.file.WriteString("\n")
+	c.mux.Unlock()
 }
