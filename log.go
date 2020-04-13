@@ -63,14 +63,16 @@ var _console bool
 // Check checks if err is a failure; if so logs and returns true; or false
 func Check(err error, a ...interface{}) bool {
 	if nil != err {
-		_chTrace <- &Trace{
-			Time:   time.Now(),
-			Kind:   strError,
-			Build:  _build,
-			Caller: getCaller(2),
-			Stack:  Stack(false),
-			Error:  err,
-			Data:   a,
+		if false == isIgnored(err) {
+			_chTrace <- &Trace{
+				Time:   time.Now(),
+				Kind:   strError,
+				Build:  _build,
+				Caller: getCaller(2),
+				Stack:  Stack(false),
+				Error:  err,
+				Data:   a,
+			}
 		}
 		return true
 	}

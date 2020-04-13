@@ -3,11 +3,15 @@ package log
 import (
 	"fmt"
 	"io"
+	"net"
 	"strconv"
 )
 
 // ErrInvalidArg generic error for invalid arguments
 var ErrInvalidArg = NewError(100, "generic", "invalid argument")
+
+// ErrClosed - generic error for a closed resource, like a file or network
+var ErrClosed = NewError(101, "gen", "resource closed")
 
 // Error used to hold error and error descriptoin
 type Error struct {
@@ -24,10 +28,16 @@ func (e *Error) Error() string {
 
 // list of errors to be ignored
 var _ignoredErrors = map[error]bool{
-	io.EOF: true,
-	//	ErrTimeout:      true,/
-	//	ErrNotConnected: true,
-	//	ErrCancelled:    true,
+	io.EOF:    true,
+	ErrClosed: true,
+	//ErrTimeout:      true,
+	//ErrNotConnected: true,
+	//ErrCancelled:    true,
+}
+
+// isIgnored
+func isIgnored(err error) bool {
+	return _ignoredErrors[MapError(err)]
 }
 
 // list of all errors that have been registered
@@ -48,8 +58,12 @@ func NewError(code int, facility, msg string) error {
 }
 
 // MapError tries to map a generic err into a registered error
-func MapError(err interface{}) *Error {
+func MapError(err interface{}) error {
 	switch val := err.(type) {
+	case *net.OpError:
+		if val.Err.Error() == "use of closed network connection" {
+			return ErrClosed
+		}
 	case *Error:
 		return val
 	case string:
