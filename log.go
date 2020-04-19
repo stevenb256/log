@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/google/uuid"
 )
 
 // strings
@@ -287,10 +288,12 @@ func writeField(w io.Writer, o interface{}, delim string) {
 		fmt.Fprintf(w, "%#x", int64(v))
 	case uint16:
 		fmt.Fprintf(w, "%d", v)
+	case uuid.UUID:
+		fmt.Fprintf(w, "%s", v.String())
 	case bool:
 		fmt.Fprintf(w, "%t", v)
 	case time.Duration:
-		fmt.Fprintf(w, "%dms", v.Milliseconds())
+		fmt.Fprintf(w, "%dms", v.Microseconds())
 	default:
 		writeUnknownField(w, v, delim)
 	}
@@ -305,7 +308,11 @@ func writeUnknownField(w io.Writer, o interface{}, delim string) {
 				if v.Field(i).CanSet() {
 					name, found := t.Field(i).Tag.Lookup("log")
 					if true == found {
-						fmt.Fprintf(w, "%s:", name)
+						if "hide" == name {
+							continue
+						} else if "" != name {
+							fmt.Fprintf(w, "%s:", name)
+						}
 					} else {
 						fmt.Fprintf(w, "%s:", t.Field(i).Name)
 					}
