@@ -221,11 +221,12 @@ func writeLog(t *trace) {
 
 // writeFile - writes tab deliminted log file entry
 func writeFile(t *trace) {
+	dir, file := filepath.Split(t.call.file)
 	fmt.Fprintf(_file, "[%s]\t%02d/%02d/%04d\t%02d:%02d:%02d\t%s:%d\t%s\t",
 		t.kind,
 		t.time.Month(), t.time.Day(), t.time.Year(),
 		t.time.Hour(), t.time.Minute(), t.time.Second(),
-		t.call.file, t.call.line, t.call.function)
+		filepath.Base(dir)+"/"+file, t.call.line, t.call.function)
 	writeFields(_file, t, "\t")
 	fmt.Fprintf(_file, "\n")
 }
