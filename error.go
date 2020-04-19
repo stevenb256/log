@@ -51,7 +51,7 @@ func NewError(code int, facility, msg string) error {
 	prefix := facility + "-" + strconv.FormatInt(int64(code), 10)
 	e.Message = prefix + ": " + msg
 	if nil != _errorTable[prefix] {
-		panic(_f("error already registered: %s", prefix))
+		panic(F("error already registered: %s", prefix))
 	}
 	_errorTable[prefix] = e
 	return e

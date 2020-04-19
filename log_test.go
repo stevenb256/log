@@ -1,7 +1,6 @@
 package log
 
 import (
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -35,13 +34,13 @@ func TestLog(t *testing.T) {
 	int2 := 2
 
 	// fail to start log
-	err := StartLog("/foobar/test.log", "1.0", true, nil)
+	err := StartLog("/foobar/test.log", "1.0", true)
 	if nil == err {
 		panic("should have failed to start log with invalid path\n")
 	}
 
 	// start log with correct information
-	err = StartLog("testlog.log", "1.0", true, OnLogTest)
+	err = StartLog("testlog.log", "1.0", true)
 	if nil != err {
 		panic("failed to create log when it should have succeeded\n")
 	}
@@ -56,25 +55,21 @@ func TestLog(t *testing.T) {
 	}
 
 	// fabricate a test trace
-	trace := &Trace{
-		Time:   time.Now(),
-		Kind:   strError,
-		Build:  "1.0",
-		Caller: getCaller(1),
-		Stack:  "",
-		Error:  errTest1,
+	trace := &trace{
+		time:  time.Now(),
+		kind:  strError,
+		call:  getCaller(1),
+		stack: "",
+		data:  []interface{}{errTest1, nil},
 		//	Data:   []interface{}{int1, int2, ct},
 	}
 
-	// get as json
-	j := trace.asJSON()
-	fmt.Printf("%s\n", j)
-
 	// get as string
-	j = trace.asString()
-	fmt.Printf("%s\n", j)
+	_chTrace <- trace
+	//writeConsole(trace)
 
 	// print a warning
+	Trace(&complexTest{T: "test-string"})
 	Fail(errTest1, "test fail", int1, int2)
 	Warning(errTest1, "test warning", int1, int2)
 	Debug(errTest1, "test debug", int1, int2)
@@ -83,9 +78,4 @@ func TestLog(t *testing.T) {
 
 	// Close the log file
 	CloseLog()
-}
-
-// call back for when a log is done
-func OnLogTest(trace *Trace) {
-	//fmt.Printf("%v\n", trace)
 }
