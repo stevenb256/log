@@ -16,10 +16,10 @@ import (
 
 // strings
 const strAssert string = "assert"
-const strError string = "err"
-const strDebug string = "dbg"
-const strInfo string = "inf"
-const strWarning string = "warn"
+const strError string = "error"
+const strDebug string = "debug"
+const strInfo string = "info"
+const strWarning string = "warning"
 
 // Hex32 -special type to declare hex
 type Hex32 uint32
@@ -43,6 +43,7 @@ type trace struct {
 	stack string
 	time  time.Time
 	call  *caller
+	trace bool
 }
 
 // global log set once initialized
@@ -50,7 +51,8 @@ var _build string
 var _chTrace chan *trace
 var _chExit chan bool
 var _file *os.File
-var _console bool
+var _consoleInfo bool
+var _consoleTrace bool
 
 // Check checks if err is a failure; if so logs and returns true; or false
 func Check(a ...interface{}) bool {
@@ -131,15 +133,16 @@ func Debug(a ...interface{}) {
 // Trace write a trace message
 func Trace(a ...interface{}) {
 	_chTrace <- &trace{
-		time: time.Now(),
-		kind: getStructName(a[0]),
-		call: getCaller(2),
-		data: a,
+		time:  time.Now(),
+		kind:  getStructName(a[0]),
+		call:  getCaller(2),
+		data:  a,
+		trace: true,
 	}
 }
 
 // StartLog initiates and begins logging system
-func StartLog(logFile, build string, console bool) error {
+func StartLog(logFile, build string, consoleInfo, consoleTrace bool) error {
 
 	// if trace already allocated exit
 	if nil != _chTrace {
@@ -156,7 +159,8 @@ func StartLog(logFile, build string, console bool) error {
 	_chTrace = make(chan *trace, 100)
 	_chExit = make(chan bool)
 	_build = build
-	_console = console
+	_consoleInfo = consoleInfo
+	_consoleTrace = consoleTrace
 
 	// run log routine
 	go logRoutine()
@@ -212,7 +216,11 @@ func openLogFile(logFile string) error {
 // writes trace info; don't use error handling functions in here
 // assumes _mux.Lock taken
 func writeLog(t *trace) {
-	if true == _console || strDebug == t.kind {
+	if strDebug == t.kind || strAssert == t.kind || strError == t.kind || strWarning == t.kind {
+		writeConsole(t)
+	} else if true == _consoleInfo && strInfo == t.kind {
+		writeConsole(t)
+	} else if true == _consoleTrace && true == t.trace {
 		writeConsole(t)
 	}
 	if nil != _file {
@@ -242,6 +250,8 @@ func writeConsole(t *trace) {
 		color.Set(color.FgHiCyan)
 	} else if strError == t.kind {
 		color.Set(color.FgHiRed)
+	} else if true == t.trace {
+		color.Set(color.FgHiGreen)
 	}
 	fmt.Fprintf(os.Stdout, "[%s] %s:%d %s: ",
 		t.kind,

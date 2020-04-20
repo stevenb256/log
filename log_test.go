@@ -34,13 +34,13 @@ func TestLog(t *testing.T) {
 	int2 := 2
 
 	// fail to start log
-	err := StartLog("/foobar/test.log", "1.0", true)
+	err := StartLog("/foobar/test.log", "1.0", true, true)
 	if nil == err {
 		panic("should have failed to start log with invalid path\n")
 	}
 
 	// start log with correct information
-	err = StartLog("testlog.log", "1.0", true)
+	err = StartLog("testlog.log", "1.0", true, true)
 	if nil != err {
 		panic("failed to create log when it should have succeeded\n")
 	}
