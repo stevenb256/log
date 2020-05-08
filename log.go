@@ -80,6 +80,9 @@ func Fail(a ...interface{}) error {
 		stack: Stack(false),
 		data:  a,
 	}
+	if nil == a[0] {
+		return nil
+	}
 	return a[0].(error)
 }
 
