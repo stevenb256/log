@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -47,9 +48,8 @@ type trace struct {
 }
 
 // global log set once initialized
+var _logMux sync.Mutex
 var _build string
-var _chTrace chan *trace
-var _chExit chan bool
 var _file *os.File
 var _consoleInfo bool
 var _consoleTrace bool
@@ -58,13 +58,13 @@ var _consoleTrace bool
 func Check(a ...interface{}) bool {
 	if nil != a[0] && nil != a[0].(error) {
 		if false == isIgnored(a[0].(error)) {
-			_chTrace <- &trace{
+			writeLog(&trace{
 				time:  time.Now(),
 				kind:  strError,
 				call:  getCaller(2),
 				stack: Stack(false),
 				data:  a,
-			}
+			})
 		}
 		return true
 	}
@@ -73,13 +73,13 @@ func Check(a ...interface{}) bool {
 
 // Fail checks if err is a failure; if so logs and returns true; or false
 func Fail(a ...interface{}) error {
-	_chTrace <- &trace{
+	writeLog(&trace{
 		time:  time.Now(),
 		kind:  strError,
 		call:  getCaller(2),
 		stack: Stack(false),
 		data:  a,
-	}
+	})
 	if nil == a[0] {
 		return nil
 	}
@@ -89,120 +89,80 @@ func Fail(a ...interface{}) error {
 // Assert if condition is false; trace and panic
 func Assert(condition bool, a ...interface{}) {
 	if false == condition {
-		t := &trace{
+		writeLog(&trace{
 			time:  time.Now(),
 			kind:  strAssert,
 			call:  getCaller(2),
 			stack: Stack(false),
 			data:  a,
-		}
+		})
 		CloseLog()
-		writeConsole(t)
 		panic(nil) // using nil prevents auto-restart from happening
 	}
 }
 
 // Warning log a warning
 func Warning(a ...interface{}) {
-	_chTrace <- &trace{
+	writeLog(&trace{
 		time: time.Now(),
 		kind: strWarning,
 		call: getCaller(2),
 		data: a,
-	}
+	})
 }
 
 // Info log info
 func Info(a ...interface{}) {
-	_chTrace <- &trace{
+	writeLog(&trace{
 		time: time.Now(),
 		kind: strInfo,
 		call: getCaller(2),
 		data: a,
-	}
+	})
 }
 
 // Debug write a debug message
 func Debug(a ...interface{}) {
-	_chTrace <- &trace{
+	writeLog(&trace{
 		time:  time.Now(),
 		kind:  strDebug,
 		call:  getCaller(2),
 		stack: Stack(false),
 		data:  a,
-	}
+	})
 }
 
 // Trace write a trace message
 func Trace(a ...interface{}) {
-	_chTrace <- &trace{
+	writeLog(&trace{
 		time:  time.Now(),
 		kind:  getStructName(a[0]),
 		call:  getCaller(2),
 		data:  a,
 		trace: true,
-	}
+	})
 }
 
 // StartLog initiates and begins logging system
 func StartLog(logFile, build string, consoleInfo, consoleTrace bool) error {
-
-	// if trace already allocated exit
-	if nil != _chTrace {
-		return nil
-	}
-
-	// open log file
 	err := openLogFile(logFile)
 	if nil != err {
 		return err
 	}
-
-	// create globals
-	_chTrace = make(chan *trace, 100)
-	_chExit = make(chan bool)
 	_build = build
 	_consoleInfo = consoleInfo
 	_consoleTrace = consoleTrace
-
-	// run log routine
-	go logRoutine()
-
-	// done
 	return nil
-}
-
-// starts log waiter and initializes stuff (runs on own routine)
-// assumes _mux.Lock is called already
-func logRoutine() {
-	var exit = false
-	for false == exit {
-		select {
-		case trace := <-_chTrace:
-			writeLog(trace)
-		case <-_chExit:
-			exit = true
-		}
-	}
 }
 
 // CloseLog shuts down and flushes log
 func CloseLog() {
-	if nil != _chExit {
-		_chExit <- true
-		if nil != _chTrace {
-			for len(_chTrace) > 0 {
-				trace := <-_chTrace
-				writeLog(trace)
-			}
-			close(_chTrace)
-		}
-		if nil != _file {
-			_file.Close()
-		}
-		close(_chExit)
-		_chExit = nil
+	_logMux.Lock()
+	if nil != _file {
+		_file.Close()
+		_file = nil
 	}
+	_logMux.Unlock()
 }
 
 // open log file; assume _mux taken
@@ -219,6 +179,7 @@ func openLogFile(logFile string) error {
 // writes trace info; don't use error handling functions in here
 // assumes _mux.Lock taken
 func writeLog(t *trace) {
+	_logMux.Lock()
 	if strDebug == t.kind || strAssert == t.kind || strError == t.kind || strWarning == t.kind {
 		writeConsole(t)
 	} else if true == _consoleInfo && strInfo == t.kind {
@@ -229,6 +190,7 @@ func writeLog(t *trace) {
 	if nil != _file {
 		writeFile(t)
 	}
+	_logMux.Unlock()
 }
 
 // writeFile - writes tab deliminted log file entry

@@ -65,7 +65,7 @@ func TestLog(t *testing.T) {
 	}
 
 	// get as string
-	_chTrace <- trace
+	writeLog(trace)
 	//writeConsole(trace)
 
 	// print a warning
