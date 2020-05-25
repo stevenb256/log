@@ -253,6 +253,8 @@ func writeField(w io.Writer, o interface{}, delim string) {
 		} else {
 			fmt.Fprintf(w, "%s", v)
 		}
+	case time.Time:
+		fmt.Fprintf(w, v.Format(time.RFC1123))
 	case int:
 		fmt.Fprintf(w, "%d", v)
 	case uint8:
