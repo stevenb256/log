@@ -53,6 +53,7 @@ var _build string
 var _file *os.File
 var _consoleInfo bool
 var _consoleTrace bool
+var _currentDir string
 
 // Check checks if err is a failure; if so logs and returns true; or false
 func Check(a ...interface{}) bool {
@@ -149,6 +150,7 @@ func StartLog(logFile, build string, consoleInfo, consoleTrace bool) error {
 	if nil != err {
 		return err
 	}
+	_currentDir, _ = os.Getwd()
 	_build = build
 	_consoleInfo = consoleInfo
 	_consoleTrace = consoleTrace
@@ -361,6 +363,9 @@ func getCaller(level int) *caller {
 		function = details.Name()
 	}
 	f := strings.Split(filepath.Base(function), ".")
+	if _currentDir == filepath.Dir(file) {
+		return &caller{file: "./" + filepath.Base(file), line: line, function: f[len(f)-1]}
+	}
 	return &caller{file: file, line: line, function: f[len(f)-1]}
 }
 
