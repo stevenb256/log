@@ -1,4 +1,4 @@
-package logg
+package log
 
 import (
 	"fmt"
@@ -272,7 +272,7 @@ func writeField(w io.Writer, o interface{}, delim string) {
 	case bool:
 		fmt.Fprintf(w, "%t", v)
 	case time.Duration:
-		fmt.Fprintf(w, "%dms", v.Microseconds())
+		fmt.Fprintf(w, "%dms", v.Milliseconds())
 	default:
 		writeUnknownField(w, v, delim)
 	}
